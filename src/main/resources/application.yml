@@ -15,5 +15,5 @@ spring:
     hibernate:
       ddl-auto: update
       jdbc:
-        batch_size: 1000
+        batch_size: 10000
       order_inserts: true

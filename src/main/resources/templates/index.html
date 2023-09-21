@@ -8,74 +8,170 @@
 <body>
 
 <div class="container mt-5">
+    <!-- Title Section -->
     <div class="row justify-content-center">
         <div class="col-md-6">
             <h2 class="text-center">Unique Code Generator</h2>
             
+            <!-- Input for Number of Codes -->
             <div class="form-group">
                 <label for="number">Enter number of codes:</label>
-                <input type="number" class="form-control" id="number" placeholder="Enter number">
+                <!-- Ensuring the input is of type "number" and step is "1" to prevent decimal/fractional inputs -->
+                <input type="number" class="form-control" id="number" placeholder="Enter number" step="1">
             </div>
 
+            <!-- Button to Trigger Code Generation -->
             <button id="generateButton" class="btn btn-primary btn-block">Generate Codes</button>
-            <div id="spinner" class="spinner-border text-primary" style="display: none;"></div>
             
-            <br>
-            
+            <!-- Timer Label -->
             <label>Time Taken:</label>
             <span id="timerLabel">-</span>
 
-            <br>
+            <!-- Visual Feedback While Processing -->
+            <div class="spinner-border text-primary" id="spinner" role="status" style="display: none;">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance Benchmark Table (Static) -->
+    <div class="row mt-5 justify-content-center">
+        <div class="col-md-6">
+            <h4 class="text-center">Performance Benchmark</h4>
 
-            <label>Performance Benchmark:</label>
-            <span id="benchmarkLabel">-</span>
+            <table class="table table-striped">
+                <tbody>
+                    <tr>
+                        <td>50,000</td>
+                        <td>~ 2 seconds</td>
+                    </tr>
+                    <tr>
+                        <td>100,000</td>
+                        <td>~ 4 seconds</td>
+                    </tr>
+                    <tr>
+                        <td>150,000</td>
+                        <td>~ 6 seconds</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Code Generation Requests Table (Dynamic, loaded post generation) -->
+    <!-- This is a placeholder. This part will be rendered using frontend script after the generation request completes. -->
+    <div class="row mt-5 justify-content-center">
+        <div class="col-md-8">
+            <h4 class="text-center">Code Generation Requests</h4>
+            <table class="table table-bordered" id="generationRequestsTable">
+                <!-- Table header -->
+                <thead>
+                    <tr>
+                        <th>Request Time</th>
+                        <th>Number of Codes</th>
+                        <th>Time Taken</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <!-- Table body (this would be populated by JS) -->
+                <tbody>
+                    <!-- Sample Row (for reference) -->
+                    <!-- <tr>
+                        <td>2023-09-21 14:35:22</td>
+                        <td>50,000</td>
+                        <td>1.8 seconds</td>
+                        <td style="color: green;">Acceptable</td>
+                    </tr> -->
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
+<!-- Frontend Script to Handle Button Click, Timing, and Data Fetching -->
 <script>
   let startTime;
-  let endTime;
+
+  // Function to start the spinner and timer
+  const startProcessing = () => {
+    $('#spinner').show();
+    $('#generateButton').prop('disabled', true);
+    startTime = new Date().getTime();
+  };
+
+  // Function to stop the spinner and timer, then fetch and render the data
+  const stopProcessing = () => {
+    $('#spinner').hide();
+    $('#generateButton').prop('disabled', false);
+    fetchDataAndRender();
+  };
+
+  // Function to fetch data from the backend and render it on the table
+  const fetchDataAndRender = () => {
+    $.get('/api/generationRequests', function(data) {
+      // Clear existing rows
+      $('#generationRequestsTable tbody').empty();
+
+      // Append new rows based on fetched data
+      data.forEach(request => {
+        let startDate = new Date(request.startedAt);
+        const formattedStartDate = formatDateTime(startDate);
+        let endDate = new Date(request.endedAt);
+
+        let timeTakenInMilliseconds = endDate - startDate;
+        let timeTakenInSeconds = timeTakenInMilliseconds / 1000;
+
+        let timeTaken = timeTakenInSeconds.toFixed(3); // Rounded to 3 decimal places
+        let status = timeTaken <= (request.numberOfCodes / 50000) * 2 ? "Acceptable" : "Exceeds Benchmark";
+        let color = status === "Acceptable" ? "green" : "red";
+        $('#generationRequestsTable tbody').append(`
+          <tr>
+            <td>${formattedStartDate}</td>
+            <td>${request.numberOfCodes}</td>
+            <td>${timeTaken} seconds</td>
+            <td style="color: ${color};">${status}</td>
+          </tr>
+        `);
+      });
+    });
+  };
+
+  const formatDateTime = (date) => {
+    let day = date.getDate();
+    let month = date.getMonth() + 1; // Months are 0-based, so +1 to get the correct month
+    let year = date.getFullYear();
+    let hours = date.getHours();
+    let minutes = date.getMinutes();
+
+    // Zero padding for day, month, hours, and minutes if they're less than 10
+    day = day < 10 ? '0' + day : day;
+    month = month < 10 ? '0' + month : month;
+    hours = hours < 10 ? '0' + hours : hours;
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
+  } 
 
   $('#generateButton').click(function() {
-      // Reset UI elements
-      $('#timerLabel').text("-");
-      $('#benchmarkLabel').text("-").css('color', 'black');
-      $(this).prop("disabled", true); // Disable button
-      $("#spinner").show();
+    const number = $('#number').val();
 
-      const number = $('#number').val();
+    // Input validation  
+    startProcessing();
 
-      // Start the timer
-      startTime = new Date().getTime();
-      
-      $.get(`/api/generateCodes?number=${number}`, function(data) {
-          // Stop the timer
-          endTime = new Date().getTime();
-          const timeTaken = (endTime - startTime) / 1000;  // in seconds
-          $('#timerLabel').text(timeTaken + " seconds");
-
-          // Dynamic benchmark calculation
-          const benchmark = Math.ceil(number / 50000) * 2; 
-
-          let comparison;
-          if (timeTaken <= benchmark) {
-              comparison = "Acceptable";
-          } else {
-              comparison = "Warning: Time exceeds benchmark!";
-              $('#benchmarkLabel').css('color', 'red');
-          }
-
-          $('#benchmarkLabel').text(comparison);
-          $("#generateButton").prop("disabled", false); // Enable button
-          $("#spinner").hide();
-      }).fail(function() {
-          $('#timerLabel').text("Error!");
-          $('#benchmarkLabel').text("Error generating codes!").css('color', 'red');
-          $("#generateButton").prop("disabled", false); // Enable button
-          $("#spinner").hide();
-      });
+    $.get(`/api/generateCodes?number=${number}`, function(data) {
+      const endTime = new Date().getTime();
+      const timeTaken = (endTime - startTime) / 1000; // in seconds
+      $('#timerLabel').text(timeTaken + " seconds");
+      stopProcessing();
+    })
+    .fail(function() {
+      // Handle error
+      stopProcessing();
+    });
   });
+
+  // Initial fetch when the page loads
+  fetchDataAndRender();
 </script>
 
 </body>
