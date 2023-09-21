@@ -1,6 +1,5 @@
 package com.nahidio.RandomCodeGenerator.service;
 
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -9,6 +8,8 @@ import java.util.stream.LongStream;
 import org.hibernate.SessionFactory;
 import org.hibernate.StatelessSession;
 import org.hibernate.Transaction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ import com.nahidio.RandomCodeGenerator.repository.GenerationRequestRepository;
 
 @Service
 public class CodeService {
+    private static final Logger logger = LoggerFactory.getLogger(CodeService.class);
 
     @Autowired
     private SessionFactory sessionFactory;
@@ -37,22 +39,25 @@ public class CodeService {
      * @param numberOfCodes Number of unique codes to generate.
      * @throws Exception If there is an issue during code generation or database operations.
      */
-    public void generateCodes(long numberOfCodes) throws Exception {
+    public GenerationRequest generateCodes(long numberOfCodes) throws Exception {
         // Step 1: Create a new GenerationRequest entity and persist it to the database.
         GenerationRequest request = new GenerationRequest();
         request.setStartedAt(LocalDateTime.now());
-        request.setNumberOfCodes(BigInteger.valueOf(numberOfCodes));
+        request.setNumberOfCodes(numberOfCodes);
         requestRepository.save(request);
 
         // Generate the list of unique codes.
+        long startGenerateTime = System.nanoTime();
         List<GeneratedCode> codes = this.createCodeList(numberOfCodes, request);
-
+        long endGenerateTime = System.nanoTime();
+        double elapsedGenerateTime = (double) (endGenerateTime - startGenerateTime) / 1_000_000_000; // Convert nanoseconds to seconds
+        logger.info("Time taken to generate codes: {} seconds", elapsedGenerateTime);
         // Step 2: Use a stateless session for bulk insertion of generated codes.
         // A stateless session is a lightweight alternative to the standard session,
         // ideal for bulk database operations as it does not keep track of persistent objects.
         StatelessSession statelessSession = null;
         Transaction tx = null;
-        
+        long startDbTime = System.nanoTime();
         try {
             statelessSession = sessionFactory.openStatelessSession();
             tx = statelessSession.beginTransaction();
@@ -75,10 +80,14 @@ public class CodeService {
                 statelessSession.close();
             }
         }
-
+        long endDbTime = System.nanoTime();
+        double elapsedDbTime = (double) (endDbTime - startDbTime) / 1_000_000_000; // Convert nanoseconds to seconds
+        logger.info("Time taken for DB operations: {} seconds", elapsedDbTime);
         // Step 3: Update the GenerationRequest record with the end time.
-        request.setEndedAt(LocalDateTime.now());
+        LocalDateTime endTime = LocalDateTime.now();
+        request.setEndedAt(endTime);
         requestRepository.save(request);
+        return request;
     }
 
     /**

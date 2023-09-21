@@ -31,6 +31,8 @@ This system is designed to efficiently generate a specified number of unique 7-c
     docker-compose up --build
     ```
 
+    Note: In case the first time if web service is random-code-generator-web-1 is still down after random-code-generator-mysql-db-1 is up. Try just starting that container again. That means the volume was ready but the table was not created in time web was trying to connect it.
+
 4. It takes around a minute to build and run the first time. Your application should be alive and kicking at: `http://localhost:8032`
 
 5. **Shutting It Down**:

@@ -1,6 +1,5 @@
 package com.nahidio.RandomCodeGenerator.entity;
 
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -35,7 +34,7 @@ public class GenerationRequest {
     private LocalDateTime endedAt;
 
     @Column(nullable = false)
-    private BigInteger numberOfCodes;
+    private long numberOfCodes;
 
     @OneToMany(mappedBy = "generationRequest", fetch = FetchType.LAZY)
     @JsonIgnore  // To prevent serialization of this side of the relationship

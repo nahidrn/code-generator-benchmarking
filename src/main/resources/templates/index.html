@@ -159,12 +159,15 @@
     startProcessing();
 
     $.get(`/api/generateCodes?number=${number}`, function(data) {
-      const endTime = new Date().getTime();
-      const timeTaken = (endTime - startTime) / 1000; // in seconds
+      let timeTakenInSeconds = (new Date(data.endedAt) - new Date(data.startedAt)) / 1000;
+
+      let timeTaken = timeTakenInSeconds.toFixed(3); // Rounded to 3 decimal places
       $('#timerLabel').text(timeTaken + " seconds");
       stopProcessing();
     })
     .fail(function() {
+      console.log('Failed',data);
+      $('#timerLabel').text(data.detail);
       // Handle error
       stopProcessing();
     });
