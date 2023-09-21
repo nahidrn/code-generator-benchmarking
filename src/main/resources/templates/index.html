@@ -18,6 +18,7 @@
             </div>
 
             <button id="generateButton" class="btn btn-primary btn-block">Generate Codes</button>
+            <div id="spinner" class="spinner-border text-primary" style="display: none;"></div>
             
             <br>
             
@@ -37,6 +38,12 @@
   let endTime;
 
   $('#generateButton').click(function() {
+      // Reset UI elements
+      $('#timerLabel').text("-");
+      $('#benchmarkLabel').text("-").css('color', 'black');
+      $(this).prop("disabled", true); // Disable button
+      $("#spinner").show();
+
       const number = $('#number').val();
 
       // Start the timer
@@ -49,21 +56,24 @@
           $('#timerLabel').text(timeTaken + " seconds");
 
           // Dynamic benchmark calculation
-          const benchmark = Math.ceil(number / 50000) * 1.5; 
+          const benchmark = Math.ceil(number / 50000) * 2; 
 
           let comparison;
           if (timeTaken <= benchmark) {
               comparison = "Acceptable";
           } else {
               comparison = "Warning: Time exceeds benchmark!";
-              $('#benchmarkLabel').css('color', 'red');  // Color the benchmark label in red as a visual indicator
+              $('#benchmarkLabel').css('color', 'red');
           }
 
           $('#benchmarkLabel').text(comparison);
+          $("#generateButton").prop("disabled", false); // Enable button
+          $("#spinner").hide();
       }).fail(function() {
           $('#timerLabel').text("Error!");
-          $('#benchmarkLabel').text("Error generating codes!");
-          $('#benchmarkLabel').css('color', 'red');
+          $('#benchmarkLabel').text("Error generating codes!").css('color', 'red');
+          $("#generateButton").prop("disabled", false); // Enable button
+          $("#spinner").hide();
       });
   });
 </script>

@@ -4,6 +4,8 @@ import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.StatelessSession;
@@ -24,48 +26,18 @@ public class CodeService {
     @Autowired
     private GenerationRequestRepository requestRepository;
 
-    public void generateCodes(BigInteger number) throws Exception {
-        int totalLength = 7;
-        int numberOfIds = number.intValue();
-        String ALPHANUMERIC = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    private static final String ALPHANUMERIC = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+    private static final int MAX_LENGTH = 7;
+    
+    public void generateCodes(long numberOfCodes) throws Exception {
         // Step 1: Create and save the GenerationRequest entity
         GenerationRequest request = new GenerationRequest();
         request.setStartedAt(LocalDateTime.now());
-        request.setNumberOfCodes(number);
+        request.setNumberOfCodes(BigInteger.valueOf(numberOfCodes));
         requestRepository.save(request);
 
-        List<GeneratedCode> codes = new ArrayList<>();
-
-        for (int i = 0; i < numberOfIds; i++) {
-
-            StringBuilder end = new StringBuilder();
-            int current = i;//depending on exact case, you would need to keep track of current
-            int remainder = current % ALPHANUMERIC.length();//the index of next character
-            
-            do {
-                end.append(ALPHANUMERIC.charAt(remainder));
-                current /= ALPHANUMERIC.length();//update to check if we need to add more characters
-                remainder = current % ALPHANUMERIC.length();//update index, only used if more chars are needed
-            } while (current > 0);
-            
-            int padCount = totalLength - end.length();
-            
-            StringBuilder result = new StringBuilder();
-            
-            for (int j = 0; j < padCount; j++) {
-                result.append("0");
-            }
-            result.append(end);
-            
-            if(result.toString().equalsIgnoreCase("000000a"))
-              System.out.println("NR::"+result);
-
-            GeneratedCode code = new GeneratedCode();
-            code.setCode(result.toString());
-            code.setGenerationRequest(request);
-            codes.add(code);
-        }
-
+        List<GeneratedCode> codes = this.createCodeList(numberOfCodes, request);
         // Step 2: Bulk Save generated codes using StatelessSession
         StatelessSession statelessSession = null;
         Transaction tx = null;
@@ -94,5 +66,29 @@ public class CodeService {
         // Step 3: Update the GenerationRequest with endedAt
         request.setEndedAt(LocalDateTime.now());
         requestRepository.save(request);
+    }
+
+    private GeneratedCode convertToBase62(long value, GenerationRequest request) {
+        StringBuilder codeBuilder = new StringBuilder();
+        do {
+            int index = (int) (value % ALPHANUMERIC.length());
+            codeBuilder.insert(0, ALPHANUMERIC.charAt(index)); // Prepend the character.
+            value /= ALPHANUMERIC.length();
+        } while (value > 0);
+    
+        String code = String.format("%" + MAX_LENGTH + "s", codeBuilder.toString()).replace(' ', '0');
+    
+        GeneratedCode generatedCode = new GeneratedCode();
+        generatedCode.setCode(code);
+        generatedCode.setGenerationRequest(request);
+    
+        return generatedCode;
+    }
+    
+    private List<GeneratedCode> createCodeList(long numberOfCodes, GenerationRequest request) {
+      return LongStream.range(0, numberOfCodes)
+              .parallel()
+              .mapToObj(i -> convertToBase62(i, request))
+              .collect(Collectors.toList());
     }
 }
