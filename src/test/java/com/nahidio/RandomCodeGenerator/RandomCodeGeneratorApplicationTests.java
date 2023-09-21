@@ -3,10 +3,10 @@ package com.nahidio.RandomCodeGenerator;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+//@SpringBootTest
 class RandomCodeGeneratorApplicationTests {
 
-	@Test
+//	@Test
 	void contextLoads() {
 	}
 

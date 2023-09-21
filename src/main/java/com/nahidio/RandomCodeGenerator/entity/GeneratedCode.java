@@ -26,7 +26,7 @@ public class GeneratedCode {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, name = "code", columnDefinition = "CHAR(7) COLLATE utf8mb4_bin")
     private String code;
 
     @ManyToOne(fetch = FetchType.LAZY)
