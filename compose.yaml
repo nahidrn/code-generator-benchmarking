@@ -1,10 +1,24 @@
 services:
+  web:
+    image: codegen-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8032:8032"
+    depends_on:
+      - mysql
   mysql:
     image: 'mysql:latest'
     environment:
-      - 'MYSQL_DATABASE=mydatabase'
-      - 'MYSQL_PASSWORD=secret'
-      - 'MYSQL_ROOT_PASSWORD=verysecret'
-      - 'MYSQL_USER=myuser'
+      - 'MYSQL_DATABASE=codes'
+      - 'MYSQL_PASSWORD=codes'
+      - 'MYSQL_ROOT_PASSWORD=root'
+      - 'MYSQL_USER=root'
     ports:
-      - '3306'
+      - '3306:12306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+volumes:
+  mysql-data:
