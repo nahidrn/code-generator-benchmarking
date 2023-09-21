@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Code Generator</title>
+    <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}">
+    <script th:src="@{/js/jquery.min.js}"></script>
+</head>
+<body>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h2 class="text-center">Unique Code Generator</h2>
+            
+            <div class="form-group">
+                <label for="number">Enter number of codes:</label>
+                <input type="number" class="form-control" id="number" placeholder="Enter number">
+            </div>
+
+            <button id="generateButton" class="btn btn-primary btn-block">Generate Codes</button>
+            
+            <br>
+            
+            <label>Time Taken:</label>
+            <span id="timerLabel">-</span>
+
+            <br>
+
+            <label>Performance Benchmark:</label>
+            <span id="benchmarkLabel">-</span>
+        </div>
+    </div>
+</div>
+
+<script>
+  let startTime;
+  let endTime;
+
+  $('#generateButton').click(function() {
+      const number = $('#number').val();
+
+      // Start the timer
+      startTime = new Date().getTime();
+      
+      $.get(`/api/generateCodes?number=${number}`, function(data) {
+          // Stop the timer
+          endTime = new Date().getTime();
+          const timeTaken = (endTime - startTime) / 1000;  // in seconds
+          $('#timerLabel').text(timeTaken + " seconds");
+
+          // Dynamic benchmark calculation
+          const benchmark = Math.ceil(number / 50000) * 1.5; 
+
+          let comparison;
+          if (timeTaken <= benchmark) {
+              comparison = "Acceptable";
+          } else {
+              comparison = "Warning: Time exceeds benchmark!";
+              $('#benchmarkLabel').css('color', 'red');  // Color the benchmark label in red as a visual indicator
+          }
+
+          $('#benchmarkLabel').text(comparison);
+      }).fail(function() {
+          $('#timerLabel').text("Error!");
+          $('#benchmarkLabel').text("Error generating codes!");
+          $('#benchmarkLabel').css('color', 'red');
+      });
+  });
+</script>
+
+</body>
+</html>
