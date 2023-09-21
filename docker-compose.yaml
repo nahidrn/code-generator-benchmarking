@@ -7,16 +7,16 @@ services:
     ports:
       - "8032:8032"
     depends_on:
-      - mysql
-  mysql:
+      - mysql-db
+  mysql-db:
     image: 'mysql:latest'
     environment:
       - 'MYSQL_DATABASE=codesdb'
-      - 'MYSQL_PASSWORD=codes'
+      - 'MYSQL_PASSWORD=root'
       - 'MYSQL_ROOT_PASSWORD=root'
-      - 'MYSQL_USER=root'
+      - 'MYSQL_USER=codesdb'
     ports:
-      - '3306:12306'
+      - '3306:3306'
     volumes:
       - mysql-data:/var/lib/mysql
 
