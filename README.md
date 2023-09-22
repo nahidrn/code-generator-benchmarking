@@ -46,44 +46,48 @@ This system is designed to efficiently generate a specified number of unique 7-c
 ### Overview
 `CodeService` is a core component of the application responsible for generating unique codes. This service contains methods for handling the code generation logic, saving these codes, and handling associated metadata for code generation requests.
 
-### Key Methods
+## Key Methods
 
-#### 1. `generateCodes(long numberOfCodes)`
+### `generateCodes`
 
-- **Purpose**: Generates unique alphanumeric codes and saves them to the database.
-  
-- **Steps**:
-    1. **Initialize Generation Request**: Records the starting time and the number of codes to be generated.
-    2. **Generate Codes**: Uses a helper method `createCodeList` to generate a list of unique codes.
-    3. **Bulk Save**: Saves the generated codes to the database using a stateless session for optimized bulk insertion.
-    4. **Finalize Generation Request**: Records the ending time for the generation request.
+Orchestrates the complete code generation and persistence workflow. Specifically, it:
+1. Notes the initiation time and desired code quantity.
+2. Produces a list of distinct codes.
+3. Stores the codes in the database utilizing a stateless session to optimize bulk insertions.
+4. Logs the duration taken for both the code production and database operations.
+5. Updates the generation request with the ending time.
 
-#### 2. `convertToBase62(long value, GenerationRequest request)`
+### `convertToBase62`
 
-- **Purpose**: Converts a given long value to a base 62 string representation.
-  
-- **Steps**:
-    1. Uses a loop to convert the long value to base 62 using the predefined alphanumeric characters.
-    2. Pads the result to ensure a consistent length for all generated codes.
-    3. Associates the generated code with the provided `GenerationRequest`.
-    4. Returns the constructed `GeneratedCode` object.
+A utility function that alters a given number to its base 62 (alphanumeric) representation. The outcome is fashioned to keep a constant code length.
 
-#### 3. `createCodeList(long numberOfCodes, GenerationRequest request)`
+### `createCodeList`
 
-- **Purpose**: Produces a list of unique alphanumeric codes.
-  
-- **Steps**:
-    1. Utilizes Java's `LongStream` to generate a sequential stream of numbers.
-    2. Converts each number to its base 62 representation using the `convertToBase62` method.
-    3. Returns the list of generated codes.
+Employs the `convertToBase62` function with Java Streams to craft a list of unique codes.
 
+### `partitionList`
+
+A function that divides a list into smaller segments, facilitating the segmented storage of generated codes for efficient database insertions.
+
+## Design Considerations
+
+- **Concurrency**: The service employs `ExecutorService` with a fixed thread pool for increased speed.
+- **Stateless Sessions**: For database operations, stateless sessions are used. They are ideal for bulk transactions as they don’t carry persistence-related overhead.
+- **Error Handling**: Provisions for transaction rollbacks are present in case of database operation errors. Additionally, mechanisms to shut down the executor service gracefully are in place.
+- **Performance Monitoring**: Vital metrics like duration taken for code generation and database tasks are logged.
+
+## Possible Enhancements and Future Work
+
+1. **Exception Handling**: There's room for improved error-handling and recovery, making the service even more robust.
+2. **Scalability**: Considerations for more scalable storage solutions or code production algorithms may be needed as the application scales.
+3. **Customizability**: Options to modify parameters like the size of the thread pool can be added for enhanced flexibility.
 ---
 
 By following the above methods sequentially, the service ensures efficient generation and storage of unique codes while capturing relevant metadata about each generation request.
 
 ## UI
 
-![Sample UI](https://user-images.githubusercontent.com/34538577/269719286-488c2a58-5731-446f-ab05-4654e9a73f96.png)
+![Sample UI](https://user-images.githubusercontent.com/34538577/269796762-8a9f5763-b646-4073-a1a8-57ec91791b45.png)
 
 1. **Main Page Layout**: The application has a clean and straightforward design that's easy to understand.
 
@@ -102,36 +106,40 @@ By following the above methods sequentially, the service ensures efficient gener
 
 ## Weaknesses and Potential Improvements
 
-### Weaknesses:
-1. **Performance Shortfall**: The current code generation and insertion process may not always meet the required performance benchmarks, especially for very large batches of codes.
-  
-2. **Database Insertion Time**: A significant portion of the total processing time is consumed by the database insertion process, especially when dealing with large volumes of codes.
+### Weaknesses:  
+1. **Transaction rollback**: Currently if an error occurs I did not implement a way to rollback the current changes.
 
-3. **Unit Test Coverage**: The current coverage of unit tests is suboptimal, leaving certain parts of the codebase untested and potentially prone to undetected issues.
+2. **Unit Test Coverage**: The current coverage of unit tests is suboptimal, leaving certain parts of the codebase untested and potentially prone to undetected issues.
 
-### Potential Improvements:
+3. **Error Propagation in CodeService**
+In the present architecture, if an exception occurs during task execution inside the `ExecutorService`, it is rethrown by `Future.get()`. This behavior might not be optimal for all scenarios, especially if we need more granular error information or handling.
 
-1. **Optimize Database Writes**:
-    - **Batching**: Group codes into larger batches before writing to the database to minimize the overhead of individual transactions.
-    - **Database Tuning**: Optimize the database schema, indexing, and configuration settings to better handle bulk insert operations.
-    - **Distributed Databases**: Consider using distributed databases like Cassandra or Amazon DynamoDB that are optimized for high-volume write operations.
+4. **Stateless Session Overheads**
+While stateless sessions are efficient for bulk operations, they might not be the best choice for more transactional tasks or when entity states are crucial. Over-relying on them can introduce challenges in more complex workflows.
 
-2. **Parallel Processing**:
-    - Introduce parallel processing or multi-threading at various stages, such as during code generation or database insertion, to expedite the overall process.
-    - Consider employing distributed compute resources, like Apache Spark, for massive-scale code generation tasks.
+5. **Potential Code Collisions**
+Given a large enough number of requests, there's a possibility, albeit small, of generating colliding codes. This isn't currently checked or handled in the service.
 
-3. **Code Generation Algorithm Optimization**:
-    - Investigate alternative algorithms or libraries that might provide faster code generation without compromising uniqueness.
+6. **Scalability Concerns**
+The service, as it stands, is designed for a single-node application. In a distributed setup or microservices architecture, additional concerns like distributed locking might arise to ensure unique code generation across nodes.
 
-4. **Increase Unit Test Coverage**:
-    - Dedicate time to write tests, especially for the core functionalities to ensure that the codebase remains robust against regressions.
-    - Use mocking libraries, like Mockito, to simulate database operations or other external dependencies during testing.
-    - Set up Continuous Integration (CI) pipelines to run tests automatically on every code push, providing instant feedback on the health of the codebase.
+7. **Dependency on External Services**
+With autowired components like the `SessionFactory` and `GenerationRequestRepository`, the service is reliant on these external components' availability and performance. Any bottleneck or failure in these dependencies can directly impact `CodeService`.
 
-5. **Monitoring & Logging**:
-    - Introduce comprehensive logging and monitoring tools like Grafana, Prometheus, or ELK Stack (Elasticsearch, Logstash, Kibana) to gain insights into system bottlenecks and performance metrics.
-    - Monitoring can help identify specific operations or queries that might be causing slowdowns.
+## Scope for Improvement
 
----
+### 1. **Dynamic Thread Pool Configuration**
+While the service currently uses a fixed-size thread pool, it could benefit from a dynamic or configurable thread pool size. This would allow the application to adapt to varying workloads and system capacities.
 
-It's crucial to continually assess and re-evaluate the system's performance, especially as the demands and scale of the operation grow. The above points are starting places for potential enhancements, and further profiling can reveal more targeted optimizations.
+### 2. **Enhanced Logging**
+Incorporating more detailed logging, especially around error cases, can aid in quicker issue resolution. Moreover, integrating with a centralized logging system can provide real-time insights.
+
+### 3. **Database Retry Mechanisms**
+To increase resilience, especially in distributed environments, implementing retry mechanisms for database operations can ensure data integrity in case of transient errors.
+
+### 4. **Code Expiry and Cleanup**
+Currently, the generated codes persist indefinitely. Introducing an expiry mechanism for codes, and periodically cleaning up expired codes, can improve database performance.
+
+### 5. **Rate Limiting**
+For systems that may be exposed to external requests, implementing rate limiting can protect the service from being overwhelmed by too many code generation requests in a short time.
+

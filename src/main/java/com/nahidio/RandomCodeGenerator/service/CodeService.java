@@ -95,6 +95,7 @@ public class CodeService {
                 future.get();
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
+                // TODO: rollback the transaction
             }
         }
 
