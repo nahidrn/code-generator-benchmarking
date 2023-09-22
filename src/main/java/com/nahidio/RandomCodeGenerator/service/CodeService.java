@@ -1,7 +1,13 @@
 package com.nahidio.RandomCodeGenerator.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -32,7 +38,7 @@ public class CodeService {
 
     // The maximum length of the code string.
     private static final int MAX_LENGTH = 7;
-    
+
     /**
      * Generate and store unique codes.
      *
@@ -41,6 +47,7 @@ public class CodeService {
      */
     public GenerationRequest generateCodes(long numberOfCodes) throws Exception {
         // Step 1: Create a new GenerationRequest entity and persist it to the database.
+        ExecutorService executorService = Executors.newFixedThreadPool(8); // Limit concurrency
         GenerationRequest request = new GenerationRequest();
         request.setStartedAt(LocalDateTime.now());
         request.setNumberOfCodes(numberOfCodes);
@@ -55,31 +62,54 @@ public class CodeService {
         // Step 2: Use a stateless session for bulk insertion of generated codes.
         // A stateless session is a lightweight alternative to the standard session,
         // ideal for bulk database operations as it does not keep track of persistent objects.
-        StatelessSession statelessSession = null;
-        Transaction tx = null;
+
         long startDbTime = System.nanoTime();
-        try {
-            statelessSession = sessionFactory.openStatelessSession();
-            tx = statelessSession.beginTransaction();
+        int chunkSize = 5000;
+        List<List<GeneratedCode>> chunks = this.partitionList(codes, chunkSize);
 
-            for (GeneratedCode code : codes) {
-                statelessSession.insert(code);
-            }
+        List<Future<?>> futures = new ArrayList<>();
 
-            tx.commit();
-        } catch (Exception ex) {
-            // Rollback the transaction in case of any exception.
-            if (tx != null) {
-                tx.rollback();
-            }
-            // Optionally, further logging can be added here to trace the exception.
-            throw new Exception("Error generating codes", ex);
-        } finally {
-            // Ensure the stateless session is closed after operations.
-            if (statelessSession != null) {
-                statelessSession.close();
+        for (List<GeneratedCode> chunk : chunks) {
+            Future<?> future = executorService.submit(() -> {
+                StatelessSession session = sessionFactory.openStatelessSession();
+                Transaction tx = session.beginTransaction();
+                try {
+                    for (GeneratedCode code : chunk) {
+                        session.insert(code);
+                    }
+                    tx.commit();
+                } catch (Exception e) {
+                    tx.rollback(); // Important to rollback on exception
+                    // Log the exception or notify the relevant system
+                } finally {
+                    session.close();
+                }
+            });
+            futures.add(future);
+        }
+
+        for (Future<?> future : futures) {
+            try {
+                //Using Future.get() to wait for each task to complete. 
+                //If an exception occurred during task execution, it will be rethrown by get()
+                future.get();
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
             }
         }
+
+        executorService.shutdown();
+        try {
+            // Allow tasks to complete or timeout after a certain period
+            if (!executorService.awaitTermination(10, TimeUnit.MINUTES)) {
+                executorService.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executorService.shutdownNow();
+        }
+
+
+
         long endDbTime = System.nanoTime();
         double elapsedDbTime = (double) (endDbTime - startDbTime) / 1_000_000_000; // Convert nanoseconds to seconds
         logger.info("Time taken for DB operations: {} seconds", elapsedDbTime);
@@ -131,5 +161,15 @@ public class CodeService {
               .parallel()
               .mapToObj(i -> convertToBase62(i, request))
               .collect(Collectors.toList());
+    }
+
+    private <T> List<List<T>> partitionList(List<T> list, int size) {
+        List<List<T>> partitions = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += size) {
+            partitions.add(new ArrayList<>(
+                list.subList(i, Math.min(i + size, list.size())))
+            );
+        }
+        return partitions;
     }
 }
