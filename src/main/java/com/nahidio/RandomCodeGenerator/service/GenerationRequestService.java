@@ -20,10 +20,10 @@ public class GenerationRequestService {
         try {
             List<GenerationRequest> requests = requestRepository.findAll();
             
-            // Initializing for each request to prevent lazy initialization issues
-            for(GenerationRequest request : requests) {
-                Hibernate.initialize(request.getGeneratedCodes());
-            }
+            // // Initializing for each request to prevent lazy initialization issues
+            // for(GenerationRequest request : requests) {
+            //     Hibernate.initialize(request.getGeneratedCodes());
+            // }
             
             return requests;
         } catch(Exception e) {
