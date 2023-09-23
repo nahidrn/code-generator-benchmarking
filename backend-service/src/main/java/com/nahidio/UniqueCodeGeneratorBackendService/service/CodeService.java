@@ -1,5 +1,6 @@
 package com.nahidio.UniqueCodeGeneratorBackendService.service;
 
+import java.nio.ByteBuffer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.StatelessSession;
@@ -48,7 +53,21 @@ public class CodeService {
     private final int CHUNK_SIZE = 10000;
     private final int MAX_NUMBER_OF_THREADS = 20;
 
+    // Ensure this key has 16 bytes for AES-128.
+    private static final String KEY = "vXoYn8$TTBc9gGOQ"; 
+    private SecretKey secretKey;
+    private Cipher cipher;
 
+    public CodeService() throws Exception {
+        // Convert the key to bytes.
+        byte[] keyBytes = KEY.getBytes();
+
+        // Create a SecretKey object using the provided bytes and the AES algorithm.
+        secretKey = new SecretKeySpec(keyBytes, "AES");
+
+        // Get an instance of the Cipher object for the AES algorithm.
+        cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+    }
     /**
      * Generate and store unique codes.
      *
@@ -152,32 +171,46 @@ public class CodeService {
     }
 
     /**
-     * Convert a given number into a base 62 alphanumeric representation.
+     * Convert a given number into an encrypted base 62 alphanumeric representation.
      *
      * @param value The number to be converted.
      * @param request The associated GenerationRequest.
-     * @return A GeneratedCode object with the computed code string.
+     * @return A GeneratedCode object with the encrypted code string.
      */
     private GeneratedCode convertToBase62(long value, GenerationRequest request) {
-        StringBuilder codeBuilder = new StringBuilder();
+      StringBuilder codeBuilder = new StringBuilder();
+      try {
+          // Initialize the Cipher for encryption.
+          cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+  
+          // Encrypt the provided value.
+          byte[] encrypted = cipher.doFinal(ByteBuffer.allocate(8).putLong(value).array());
+  
+          // Convert encrypted bytes to base62 representation.
+          ByteBuffer wrapped = ByteBuffer.wrap(encrypted);
+          long num = Math.abs(wrapped.getLong());
+          
+          do {
+              int index = (int) (num % ALPHANUMERIC.length());
+              codeBuilder.insert(0, ALPHANUMERIC.charAt(index)); // Prepend the character.
+              num /= ALPHANUMERIC.length();
+          } while (num > 0);
+          
+          // Format the code to the required length, padding with zeros if needed.
+          String code = String.format("%" + MAX_LENGTH + "s", codeBuilder.toString()).replace(' ', '0');
+          
+          GeneratedCode generatedCode = new GeneratedCode();
+          generatedCode.setCode(code);
+          generatedCode.setGenerationRequest(request);
+  
+          return generatedCode;
+  
+      } catch (Exception e) {
+          logger.error("Error during code generation", e);
+          throw new RuntimeException("Error during code generation", e);
+      }
+  }
 
-        // Convert the number into base 62 representation using the ALPHANUMERIC characters.
-        do {
-            int index = (int) (value % ALPHANUMERIC.length());
-            codeBuilder.insert(0, ALPHANUMERIC.charAt(index)); // Prepend the character.
-            value /= ALPHANUMERIC.length();
-        } while (value > 0);
-    
-        // Format the code to the required length, padding with zeros if needed.
-        String code = String.format("%" + MAX_LENGTH + "s", codeBuilder.toString()).replace(' ', '0');
-    
-        GeneratedCode generatedCode = new GeneratedCode();
-        generatedCode.setCode(code);
-        generatedCode.setGenerationRequest(request);
-    
-        return generatedCode;
-    }
-    
     /**
      * Create a list of unique GeneratedCode objects.
      *
@@ -189,6 +222,7 @@ public class CodeService {
         long startValue = lastCodeId.getAndAdd(numberOfCodes);  // Atomically increments by numberOfCodes and returns the previous value.
         return LongStream.range(startValue, startValue + numberOfCodes)
                 .parallel()
+                .peek(i -> System.out.println("Mapping value: " + i))
                 .mapToObj(i -> convertToBase62(i, request))
                 .collect(Collectors.toList());
     }
@@ -208,6 +242,8 @@ public class CodeService {
             Optional<Long> maxValueOpt = generatedCodeRepository.getMaxId();
             long maxValue = maxValueOpt.orElse(0L); // Default to 0 if no codes exist
             lastCodeId.set(maxValue);
+        } else {
+          lastCodeId.set(1L);
         }
     }
 }
