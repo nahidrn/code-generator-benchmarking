@@ -171,6 +171,7 @@ By following the above methods sequentially, the service ensures efficient gener
 ## Weaknesses and Potential Improvements
 
 ### Weaknesses:  
+
 1. **Transaction rollback**: Currently if an error occurs I did not implement a way to rollback the current changes.
 
 2. **Unit Test Coverage**: The current coverage of unit tests is suboptimal, leaving certain parts of the codebase untested and potentially prone to undetected issues.
@@ -181,29 +182,22 @@ In the present architecture, if an exception occurs during task execution inside
 4. **Stateless Session Overheads**
 While stateless sessions are efficient for bulk operations, they might not be the best choice for more transactional tasks or when entity states are crucial. Over-relying on them can introduce challenges in more complex workflows.
 
-5. **Potential Code Collisions**
-Given a large enough number of requests, there's a possibility, albeit small, of generating colliding codes. This isn't currently checked or handled in the service.
+5. **Scalability Concerns**
+The services are linked directly, currently there are no service registry or api gateway there.
 
-6. **Scalability Concerns**
-The service, as it stands, is designed for a single-node application. In a distributed setup or microservices architecture, additional concerns like distributed locking might arise to ensure unique code generation across nodes.
-
-7. **Dependency on External Services**
+6. **Dependency on External Services**
 With autowired components like the `SessionFactory` and `GenerationRequestRepository`, the service is reliant on these external components' availability and performance. Any bottleneck or failure in these dependencies can directly impact `CodeService`.
 
 ## Scope for Improvement
-
-### 1. **Dynamic Thread Pool Configuration**
-While the service currently uses a fixed-size thread pool, it could benefit from a dynamic or configurable thread pool size. This would allow the application to adapt to varying workloads and system capacities.
-
-### 2. **Enhanced Logging**
+### 1. **Enhanced Logging**
 Incorporating more detailed logging, especially around error cases, can aid in quicker issue resolution. Moreover, integrating with a centralized logging system can provide real-time insights.
 
-### 3. **Database Retry Mechanisms**
+### 2. **Database Retry Mechanisms**
 To increase resilience, especially in distributed environments, implementing retry mechanisms for database operations can ensure data integrity in case of transient errors.
 
-### 4. **Code Expiry and Cleanup**
+### 3. **Code Expiry and Cleanup**
 Currently, the generated codes persist indefinitely. Introducing an expiry mechanism for codes, and periodically cleaning up expired codes, can improve database performance.
 
-### 5. **Rate Limiting**
+### 4. **Rate Limiting**
 For systems that may be exposed to external requests, implementing rate limiting can protect the service from being overwhelmed by too many code generation requests in a short time.
 

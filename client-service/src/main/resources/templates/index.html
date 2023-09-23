@@ -23,7 +23,7 @@
             <div id="errorDiv" class="mt-2" style="color: red; display: none;"></div>
             <!-- Button to Trigger Code Generation -->
             <button id="generateButton" class="btn btn-primary btn-block">Generate Codes</button>
-            <br/><br/>
+            <br/>
             <!-- Timer Label -->
             <label>Time Taken:</label>
             <span id="timerLabel">-</span>
@@ -32,6 +32,11 @@
             <div class="spinner-border text-primary" id="spinner" role="status" style="display: none;">
                 <span class="sr-only">Loading...</span>
             </div>
+            <div class="card mt-4" id="notice-card" style="display: none;">
+              <div class="card-body">
+                  <p id="notice-text" class="mb-0"></p>
+              </div>
+          </div>
         </div>
     </div>
     
@@ -110,35 +115,42 @@
 
   // Function to fetch data from the backend and render it on the table
   const fetchDataAndRender = () => {
+    let timeoutId = setTimeout(() => {
+        $('#notice-text').html("<strong>Generating codes is a comprehensive process and may take some time. We appreciate your patience. Feel free to continue with other tasks or close this window. You can always return later to check the status of your request.</strong>");
+        $('#notice-card').show();  // Show the card
+    }, 30000);
     $.get('http://localhost:8032/api/generationRequests', function(data) {
       // Clear existing rows
       $('#generationRequestsTable tbody').empty();
-
+      clearTimeout(timeoutId);
+      $('#notice-text').text("");
+      $('#notice-card').hide();  // Hide the card
       // Append new rows based on fetched data
       data.forEach(request => {
-        // If another existing process is still runnning we won't show it here
+        let startDate = new Date(request.startedAt);
+        const formattedStartDate = formatDateTime(startDate);
+        let status = "In Progress";
+        let timeTaken = "-";
+        let color = "blue";
+        const benchmarkTime = (request.numberOfCodes / 50000) * 2;
         if(request.endedAt !== null) {
-
-            let startDate = new Date(request.startedAt);
-            const formattedStartDate = formatDateTime(startDate);
             let endDate = new Date(request.endedAt);
             let timeTakenInMilliseconds = endDate - startDate;
             let timeTakenInSeconds = timeTakenInMilliseconds / 1000;
 
-            let timeTaken = timeTakenInSeconds.toFixed(3); // Rounded to 3 decimal places
-            const benchmarkTime = (request.numberOfCodes / 50000) * 2;
-            let status = timeTaken <=  benchmarkTime ? "Acceptable" : "Exceeds Benchmark";
-            let color = status === "Acceptable" ? "green" : "red";
-            $('#generationRequestsTable tbody').append(`
-              <tr>
-                <td>${formattedStartDate}</td>
-                <td>${request.numberOfCodes}</td>
-                <td>${timeTaken} seconds</td>
-                <td>${benchmarkTime} seconds</td>
-                <td style="color: ${color};">${status}</td>
-              </tr>
-            `);
+            timeTaken = timeTakenInSeconds.toFixed(3); // Rounded to 3 decimal places
+            status = timeTaken <=  benchmarkTime ? "Acceptable" : "Exceeds Benchmark";
+            color = status === "Acceptable" ? "green" : "red";
         }
+        $('#generationRequestsTable tbody').append(`
+          <tr>
+            <td>${formattedStartDate}</td>
+            <td>${request.numberOfCodes}</td>
+            <td>${timeTaken} seconds</td>
+            <td>${benchmarkTime} seconds</td>
+            <td style="color: ${color};">${status}</td>
+          </tr>
+        `);
       });
     });
   };
@@ -177,9 +189,11 @@
       stopProcessing();
     })
     .fail(function(data) {
-      console.log('Failed',data.responseJSON.detail);
-      $('#timerLabel').text("");
-      showError(data.responseJSON.detail);
+      if(data.responseJSON) {
+        console.log('Failed',data.responseJSON.detail);
+        $('#timerLabel').text("");
+        showError(data.responseJSON.detail);
+      }
       // Handle error
       stopProcessing();
     });
