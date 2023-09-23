@@ -2,7 +2,14 @@
 
 This system is designed to efficiently generate a specified number of unique 7-character alphanumeric codes upon user request.
 
+There are two services running
+
+1. Unique code generation backend service
+2. Unique code generation frontend service
+
 ## 🛠 Technologies Used
+
+### Unique Code Generation Backend Service
 
 - **Spring Boot 3.1**: 
   - The backbone of my application, offering a rich framework to build stand-alone, production-ready Spring applications swiftly.
@@ -12,7 +19,15 @@ This system is designed to efficiently generate a specified number of unique 7-c
   - This is the secret sauce for efficient bulk operations. Stateless sessions provide a speed boost during bulk inserts by bypassing some of the overheads found in typical Hibernate sessions.
 - **MySQL**: 
   - Robust RDBMS solution, where all the generated codes and request logs reside.
-- **Docker and Docker Compose**: 
+
+### Unique Code Generation Frontend Service
+
+- **Spring Boot 3.1**: 
+  - The backbone of my application, offering a rich framework to build stand-alone, production-ready Spring applications swiftly.
+- **Thymeleaf**: 
+  - Thymeleaf is favored for its natural templating capability and smooth integration with Spring Boot.
+
+**Docker and Docker Compose**: 
   - These containerization tools ensure that the app and its dependencies (like MySQL) remain consistent across different environments.
 
 ## 🚀 How to Run the Project
@@ -31,7 +46,7 @@ This system is designed to efficiently generate a specified number of unique 7-c
     docker-compose up --build
     ```
 
-    Note: In case the first time if web service is random-code-generator-web-1 is still down after random-code-generator-mysql-db-1 is up. Try just starting that container again. That means the volume was ready but the table was not created in time web was trying to connect it.
+    **Note: In case the first time if backend service (uniquecodegenerator-app-1) is still down after mysql (uniquecodegenerator-mysql-db-1) and client service (uniquecodegenerator-web-1) is up. Try just starting that uniquecodegenerator-app-1 container again. That means the db volume was ready but the chema/structure were not created in time app was trying to connect it.**
 
 4. It takes around 5 minutes to build and run the first time. Your application should be alive and kicking at: `http://localhost:8032`
 
@@ -45,6 +60,10 @@ This system is designed to efficiently generate a specified number of unique 7-c
 
 ### Overview
 `CodeService` is a core component of the application responsible for generating unique codes. This service contains methods for handling the code generation logic, saving these codes, and handling associated metadata for code generation requests.
+
+## ER Diagram
+
+![ER Diagram](https://user-images.githubusercontent.com/34538577/270100455-5afaaf0a-60de-4b9e-b648-b9dda26b74b9.png)
 
 ## Key Methods
 
@@ -68,6 +87,51 @@ Employs the `convertToBase62` function with Java Streams to craft a list of uniq
 ### `partitionList`
 
 A function that divides a list into smaller segments, facilitating the segmented storage of generated codes for efficient database insertions.
+
+## Code Generation Explanation
+
+The key generation process ensures the uniqueness of the generated codes by leveraging both an incrementing counter and the unique ID of a generation request. Here's a step-by-step breakdown:
+
+### 1. Mixing Counter with Request ID
+
+In the line:
+
+```java
+long mixedValue = value ^ request.getId(); // Simple bitwise XOR
+```
+
+We use a bitwise XOR operation to combine `value` (an incrementing counter for each code generated within a given request) and `request.getId()` (a unique ID for each generation request).
+
+- **Example**: If `value` is `5` (binary `0101`) and the `request.getId()` is `3` (binary `0011`), the result of the XOR operation (`mixedValue`) will be `6` (binary `0110`). 
+
+### 2. Converting to Base 62
+
+The code then proceeds to convert this mixed value into a base 62 representation using the following loop:
+
+```java
+for (int i = 0; i < MAX_LENGTH; i++) {
+    int index = (int) (mixedValue % ALPHANUMERIC.length());
+    codeBuilder.insert(0, ALPHANUMERIC.charAt(index));
+    mixedValue /= ALPHANUMERIC.length();
+}
+```
+
+This loop ensures that the generated code has a length of `MAX_LENGTH` and is formed by selecting characters from the `ALPHANUMERIC` set. The use of the modulo operation with `ALPHANUMERIC.length()` helps select the appropriate character from the set for each position in the generated code.
+
+So it achieves the following:
+
+- Repeatedly calculate the remainder of mixedValue divided by the number of characters in the base (ALPHANUMERIC.length() or 62). This remainder indexes into the alphanumeric set to select a character.
+- The chosen character is prepended to the start of the code string.
+- mixedValue is then divided by the base, reducing its value.
+- This loop continues until the generated code reaches MAX_LENGTH (which is 7).
+
+#### Illustration:
+
+Suppose mixedValue begins as 135, and our ALPHANUMERIC string is "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz":
+
+- Iteration 1: 135 % 62 = 11, maps to 'B', making our code 'B'.
+- Iteration 2: 135 / 62 = 2. Now, 2 % 62 = 2, maps to '2', making our code '2B'.
+- This continues until we achieve a 7-character code.
 
 ## Design Considerations
 
