@@ -1,0 +1,8 @@
+services:
+  web:
+    image: unique-codegen-client
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8033:8033"

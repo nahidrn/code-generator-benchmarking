@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Code Generator</title>
+    <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}">
+    <script th:src="@{/js/jquery.min.js}"></script>
+</head>
+<body>
+
+<div class="container mt-5">
+    <!-- Title Section -->
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h2 class="text-center">Unique Code Generator</h2>
+            
+            <!-- Input for Number of Codes -->
+            <div class="form-group">
+                <label for="number">Enter number of codes:</label>
+                <!-- Ensuring the input is of type "number" and step is "1" to prevent decimal/fractional inputs -->
+                <input type="number" class="form-control" id="number" placeholder="Enter number" step="1">
+            </div>
+            <div id="errorDiv" class="mt-2" style="color: red; display: none;"></div>
+            <!-- Button to Trigger Code Generation -->
+            <button id="generateButton" class="btn btn-primary btn-block">Generate Codes</button>
+            <br/><br/>
+            <!-- Timer Label -->
+            <label>Time Taken:</label>
+            <span id="timerLabel">-</span>
+
+            <!-- Visual Feedback While Processing -->
+            <div class="spinner-border text-primary" id="spinner" role="status" style="display: none;">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance Benchmark Table (Static) -->
+    <div class="row mt-5 justify-content-center">
+        <div class="col-md-6">
+            <h4 class="text-center">Performance Benchmark</h4>
+
+            <table class="table table-striped">
+                <tbody>
+                    <tr>
+                        <td>50,000</td>
+                        <td>~ 2 seconds</td>
+                    </tr>
+                    <tr>
+                        <td>100,000</td>
+                        <td>~ 4 seconds</td>
+                    </tr>
+                    <tr>
+                        <td>150,000</td>
+                        <td>~ 6 seconds</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Code Generation Requests Table (Dynamic, loaded post generation) -->
+    <!-- This is a placeholder. This part will be rendered using frontend script after the generation request completes. -->
+    <div class="row mt-5 justify-content-center">
+        <div class="col-md-8">
+            <h4 class="text-center">Code Generation Requests</h4>
+            <table class="table table-bordered" id="generationRequestsTable">
+                <!-- Table header -->
+                <thead>
+                    <tr>
+                        <th>Request Time</th>
+                        <th>Number of Codes</th>
+                        <th>Time Taken</th>
+                        <th>Benchmark Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <!-- Table body (this would be populated by JS) -->
+                <tbody>
+                    <!-- Sample Row (for reference) -->
+                    <!-- <tr>
+                        <td>2023-09-21 14:35:22</td>
+                        <td>50,000</td>
+                        <td>1.8 seconds</td>
+                        <td style="color: green;">Acceptable</td>
+                    </tr> -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Frontend Script to Handle Button Click, Timing, and Data Fetching -->
+<script>
+  let startTime;
+
+  // Function to start the spinner and timer
+  const startProcessing = () => {
+    $('#spinner').show();
+    $('#generateButton').prop('disabled', true);
+    startTime = new Date().getTime();
+  };
+
+  // Function to stop the spinner and timer, then fetch and render the data
+  const stopProcessing = () => {
+    $('#spinner').hide();
+    $('#generateButton').prop('disabled', false);
+    fetchDataAndRender();
+  };
+
+  // Function to fetch data from the backend and render it on the table
+  const fetchDataAndRender = () => {
+    $.get('http://localhost:8032/api/generationRequests', function(data) {
+      // Clear existing rows
+      $('#generationRequestsTable tbody').empty();
+
+      // Append new rows based on fetched data
+      data.forEach(request => {
+        // If another existing process is still runnning we won't show it here
+        if(request.endedAt !== null) {
+
+            let startDate = new Date(request.startedAt);
+            const formattedStartDate = formatDateTime(startDate);
+            let endDate = new Date(request.endedAt);
+            let timeTakenInMilliseconds = endDate - startDate;
+            let timeTakenInSeconds = timeTakenInMilliseconds / 1000;
+
+            let timeTaken = timeTakenInSeconds.toFixed(3); // Rounded to 3 decimal places
+            const benchmarkTime = (request.numberOfCodes / 50000) * 2;
+            let status = timeTaken <=  benchmarkTime ? "Acceptable" : "Exceeds Benchmark";
+            let color = status === "Acceptable" ? "green" : "red";
+            $('#generationRequestsTable tbody').append(`
+              <tr>
+                <td>${formattedStartDate}</td>
+                <td>${request.numberOfCodes}</td>
+                <td>${timeTaken} seconds</td>
+                <td>${benchmarkTime} seconds</td>
+                <td style="color: ${color};">${status}</td>
+              </tr>
+            `);
+        }
+      });
+    });
+  };
+
+  const formatDateTime = (date) => {
+    let day = date.getDate();
+    let month = date.getMonth() + 1; // Months are 0-based, so +1 to get the correct month
+    let year = date.getFullYear();
+    let hours = date.getHours();
+    let minutes = date.getMinutes();
+
+    // Zero padding for day, month, hours, and minutes if they're less than 10
+    day = day < 10 ? '0' + day : day;
+    month = month < 10 ? '0' + month : month;
+    hours = hours < 10 ? '0' + hours : hours;
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
+  } 
+
+  $('#generateButton').click(function() {
+    $('#timerLabel').text("");
+    const number = $('#number').val();
+    if (!number) {
+        showError("The input box cannot be empty.");
+        return;
+    }
+    // Input validation  
+    startProcessing();
+
+    $.get(`http://localhost:8032/api/generateCodes?number=${number}`, function(data) {
+      let timeTakenInSeconds = (new Date(data.endedAt) - new Date(data.startedAt)) / 1000;
+
+      let timeTaken = timeTakenInSeconds.toFixed(3); // Rounded to 3 decimal places
+      $('#timerLabel').text(timeTaken + " seconds");
+      stopProcessing();
+    })
+    .fail(function(data) {
+      console.log('Failed',data.responseJSON.detail);
+      $('#timerLabel').text("");
+      showError(data.responseJSON.detail);
+      // Handle error
+      stopProcessing();
+    });
+  });
+
+  const showError = (message) => {
+      $('#errorDiv').text(message);
+      $('#errorDiv').show();
+      setTimeout(() => {
+          $('#errorDiv').hide();
+      }, 5000); // hide after 5 seconds
+  };
+
+  // Initial fetch when the page loads
+  fetchDataAndRender();
+</script>
+
+<style>
+  body, html {
+      margin: 0;
+      padding: 0;
+  }
+
+  .overflowing-element {
+      overflow: hidden;
+  }
+</style>
+
+</body>
+</html>

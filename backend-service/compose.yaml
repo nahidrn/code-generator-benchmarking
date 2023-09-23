@@ -1,28 +1,13 @@
-version: '3'
-
 services:
-  web:
-    image: unique-codegen-client
-    build:
-      context: ./client-service
-      dockerfile: Dockerfile
-    ports:
-      - "8033:8033"
-    volumes:
-      - maven-repo:/root/.m2
-
   app:
     image: unique-codegen-backend
     build:
-      context: ./backend-service
+      context: .
       dockerfile: Dockerfile
     ports:
       - "8032:8032"
     depends_on:
       - mysql-db
-    volumes:
-      - maven-repo:/root/.m2
-
   mysql-db:
     image: 'mysql:latest'
     environment:
@@ -37,4 +22,3 @@ services:
 
 volumes:
   mysql-data:
-  maven-repo:
